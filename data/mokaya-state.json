@@ -1,0 +1,215 @@
+{
+  "leaderboard": [
+    {
+      "playerName": "ValenFlow",
+      "elo": 1580,
+      "wins": 42,
+      "losses": 9,
+      "stylePoints": 720,
+      "styleRank": "Leyenda Chispa Original",
+      "fighterId": "bloom",
+      "petId": "laughing-cat",
+      "clanTag": "BEAT",
+      "updatedAt": 1795024071341
+    },
+    {
+      "playerName": "KiroChispa",
+      "elo": 1495,
+      "wins": 35,
+      "losses": 11,
+      "stylePoints": 610,
+      "styleRank": "Icono de Mokaya",
+      "fighterId": "mokay-fosforo",
+      "petId": "sparky",
+      "clanTag": "CHISPA",
+      "updatedAt": 1795020471341
+    },
+    {
+      "playerName": "NoraInk30",
+      "elo": 1430,
+      "wins": 29,
+      "losses": 10,
+      "stylePoints": 495,
+      "styleRank": "Coleccionista Drop",
+      "fighterId": "mokay-caja",
+      "petId": "tintin",
+      "clanTag": "TINTA",
+      "updatedAt": 1795022271341
+    },
+    {
+      "playerName": "DinoRex_AR",
+      "elo": 1360,
+      "wins": 24,
+      "losses": 12,
+      "stylePoints": 560,
+      "styleRank": "Icono de Mokaya",
+      "fighterId": "street-dino",
+      "petId": "laughing-cat",
+      "clanTag": "VIVA",
+      "updatedAt": 1795018671341
+    },
+    {
+      "playerName": "SombraPunk",
+      "elo": 1310,
+      "wins": 19,
+      "losses": 10,
+      "stylePoints": 430,
+      "styleRank": "Coleccionista Drop",
+      "fighterId": "molotov",
+      "petId": "nubi",
+      "clanTag": "CHISPA",
+      "updatedAt": 1795015671341
+    },
+    {
+      "playerName": "BirdySky",
+      "elo": 1275,
+      "wins": 15,
+      "losses": 8,
+      "stylePoints": 340,
+      "styleRank": "Estilo Fresco",
+      "fighterId": "birdy",
+      "petId": "nubi",
+      "clanTag": "NUBE",
+      "updatedAt": 1795012671341
+    }
+  ],
+  "clans": [
+    {
+      "tag": "CHISPA",
+      "name": "Guardianes de la Chispa",
+      "district": "Plaza Infinita",
+      "motto": "Pura técnica, cero excusas.",
+      "points": 2840,
+      "members": [
+        "KiroChispa",
+        "SombraPunk",
+        "MokayerPro"
+      ]
+    },
+    {
+      "tag": "BEAT",
+      "name": "Rhythm Hood Crew",
+      "district": "Rhythm Hood",
+      "motto": "Cada combo sigue el compás.",
+      "points": 2610,
+      "members": [
+        "ValenFlow",
+        "FlokoBeats"
+      ]
+    },
+    {
+      "tag": "VIVA",
+      "name": "Arena Viva Titans",
+      "district": "Arena Viva",
+      "motto": "Disciplina de torneo en cada ronda.",
+      "points": 2190,
+      "members": [
+        "DinoRex_AR",
+        "MareaSurf"
+      ]
+    },
+    {
+      "tag": "TINTA",
+      "name": "Club Rubber-Hose",
+      "district": "Tintópolis",
+      "motto": "Blanco, negro y reflejos puros.",
+      "points": 1980,
+      "members": [
+        "NoraInk30"
+      ]
+    }
+  ],
+  "tournament": {
+    "id": "copa-rhythm-01",
+    "title": "Copa Semanal · Rhythm Hood Drop",
+    "district": "rhythm-hood",
+    "rewardName": "Trofeo Bomber Dorada Artelia + Corona Chispa",
+    "endsAt": 1795373271341,
+    "participants": [
+      "ValenFlow",
+      "KiroChispa",
+      "NoraInk30",
+      "DinoRex_AR",
+      "SombraPunk",
+      "BirdySky"
+    ],
+    "matches": [
+      {
+        "id": "q1",
+        "round": "Cuartos",
+        "playerA": "ValenFlow",
+        "playerB": "BirdySky",
+        "winner": "ValenFlow"
+      },
+      {
+        "id": "q2",
+        "round": "Cuartos",
+        "playerA": "DinoRex_AR",
+        "playerB": "SombraPunk",
+        "winner": "DinoRex_AR"
+      },
+      {
+        "id": "q3",
+        "round": "Cuartos",
+        "playerA": "KiroChispa",
+        "playerB": "NoraInk30",
+        "winner": "KiroChispa"
+      },
+      {
+        "id": "q4",
+        "round": "Cuartos",
+        "playerA": "Tú (Mokayer)",
+        "playerB": "Bot Torneo",
+        "winner": null
+      },
+      {
+        "id": "s1",
+        "round": "Semifinal",
+        "playerA": "ValenFlow",
+        "playerB": "DinoRex_AR",
+        "winner": null
+      },
+      {
+        "id": "s2",
+        "round": "Semifinal",
+        "playerA": "KiroChispa",
+        "playerB": "Ganador Q4",
+        "winner": null
+      },
+      {
+        "id": "f1",
+        "round": "Final",
+        "playerA": "Ganador S1",
+        "playerB": "Ganador S2",
+        "winner": null
+      }
+    ]
+  },
+  "chatMessages": [
+    {
+      "id": "m1",
+      "channel": "global",
+      "sender": "ValenFlow",
+      "clanTag": "BEAT",
+      "text": "¿Quién se arma un 1v1 en Rhythm Hood? Sala rápida abierta.",
+      "timestamp": 1795027251341
+    },
+    {
+      "id": "m2",
+      "channel": "global",
+      "sender": "KiroChispa",
+      "clanTag": "CHISPA",
+      "text": "Recuerden que la ropa solo desbloquea efectos visuales, ¡pura habilidad en torneo!",
+      "timestamp": 1795027491341
+    }
+  ],
+  "friends": {
+    "mokayerpro": [
+      "ValenFlow",
+      "KiroChispa"
+    ],
+    "birdysky": [
+      "MokayerPro"
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Mokaya Arena",
+  "description": "Videojuego de combate 2D 1v1 estilizado en el universo streetwear Mokaya con personalización de prendas, mascotas evolutivas, clanes, torneos semanales y chat de voz en tiempo real.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
