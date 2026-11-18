@@ -23,6 +23,8 @@ import {
 } from '../hooks/useMokayaRealtime';
 import { MascotVectorPortrait } from './VectorPortrait';
 
+import { FirebasePublicProfile } from '../hooks/useFirebaseSocial';
+
 interface SocialHubProps {
   loadout: PlayerLoadout;
   onUpdateLoadout: (updater: (prev: PlayerLoadout) => PlayerLoadout) => void;
@@ -32,6 +34,15 @@ interface SocialHubProps {
   chatMessages: ChatMessage[];
   onSendChat: (channel: string, text: string) => void;
   onGoToQuickMatch: () => void;
+  // Google Auth & Firebase Friends
+  isGoogleSignedIn: boolean;
+  authBusy: boolean;
+  authError: string | null;
+  googleDisplayName: string | null;
+  googlePhotoURL: string | null;
+  onLoginGoogle: () => void;
+  onLogoutGoogle: () => void;
+  googleDiscoveryPlayers: FirebasePublicProfile[];
   // Friends & Dual Races
   friends: FriendProfile[];
   onlinePlayers: OnlinePlayerSummary[];
@@ -39,7 +50,7 @@ interface SocialHubProps {
   duelStatusNotice: string | null;
   roomError: string | null;
   onAddFriend: (friendName: string) => Promise<{ ok: boolean; error?: string }>;
-  onRemoveFriend: (friendName: string) => void;
+  onRemoveFriend: (friendName: string, friendUid?: string | null) => void;
   onSendDuelInvite: (targetPlayerName: string, arenaId: string, targetClientId?: string | null) => void;
   // Voice
   voiceChannel: string | null;
@@ -61,6 +72,14 @@ export const SocialHub: React.FC<SocialHubProps> = ({
   chatMessages,
   onSendChat,
   onGoToQuickMatch,
+  isGoogleSignedIn,
+  authBusy,
+  authError,
+  googleDisplayName,
+  googlePhotoURL,
+  onLoginGoogle,
+  onLogoutGoogle,
+  googleDiscoveryPlayers,
   friends,
   onlinePlayers,
   leaderboard,
@@ -104,33 +123,65 @@ export const SocialHub: React.FC<SocialHubProps> = ({
   const friendNameSet = new Set(friends.map((f) => f.playerName.toLowerCase()));
   const meLower = loadout.playerName.toLowerCase();
 
-  // Discover players online right now or on global leaderboard not yet in friends
-  const discoveryCandidates = [
-    ...onlinePlayers
-      .filter((p) => p.playerName.toLowerCase() !== meLower && !friendNameSet.has(p.playerName.toLowerCase()))
-      .map((p) => ({
-        playerName: p.playerName,
-        clanTag: p.clanTag,
-        petId: (p.petId as PetId) || 'mokay-fosforo',
+  // Discover players from Google accounts, online WS, or leaderboard not yet in friends
+  const seenNames = new Set<string>([meLower, ...friendNameSet]);
+  const discoveryCandidates: {
+    key: string;
+    playerName: string;
+    clanTag: string;
+    petId: PetId;
+    online: boolean;
+    clientId: string | null;
+    photoURL?: string;
+    isGoogle?: boolean;
+  }[] = [];
+
+  for (const gp of googleDiscoveryPlayers) {
+    const low = gp.displayName.toLowerCase();
+    if (!seenNames.has(low)) {
+      seenNames.add(low);
+      discoveryCandidates.push({
+        key: gp.uid,
+        playerName: gp.displayName,
+        clanTag: gp.clanTag,
+        petId: (gp.petId as PetId) || 'mokay-fosforo',
+        online: gp.online,
+        clientId: gp.uid,
+        photoURL: gp.photoURL,
+        isGoogle: true,
+      });
+    }
+  }
+
+  for (const op of onlinePlayers) {
+    const low = op.playerName.toLowerCase();
+    if (!seenNames.has(low)) {
+      seenNames.add(low);
+      discoveryCandidates.push({
+        key: `ws_${op.id}`,
+        playerName: op.playerName,
+        clanTag: op.clanTag,
+        petId: (op.petId as PetId) || 'mokay-fosforo',
         online: true,
-        clientId: p.id,
-      })),
-    ...leaderboard
-      .filter(
-        (lb) =>
-          lb.playerName.toLowerCase() !== meLower &&
-          !friendNameSet.has(lb.playerName.toLowerCase()) &&
-          !onlinePlayers.some((op) => op.playerName.toLowerCase() === lb.playerName.toLowerCase())
-      )
-      .slice(0, 6)
-      .map((lb) => ({
+        clientId: op.id,
+      });
+    }
+  }
+
+  for (const lb of leaderboard.slice(0, 6)) {
+    const low = lb.playerName.toLowerCase();
+    if (!seenNames.has(low)) {
+      seenNames.add(low);
+      discoveryCandidates.push({
+        key: `lb_${lb.playerName}`,
         playerName: lb.playerName,
         clanTag: lb.clanTag,
         petId: (lb.petId as PetId) || 'mokay-fosforo',
         online: false,
         clientId: null,
-      })),
-  ];
+      });
+    }
+  }
 
   const handleAddFriendSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,6 +300,80 @@ export const SocialHub: React.FC<SocialHubProps> = ({
 
       {socialSection === 'amigos' && (
         <div className="space-y-4">
+          {/* Google Account Sign-In Card */}
+          <div className="mokaya-card rounded-2xl p-4 space-y-2.5 bg-zinc-950 text-white">
+            {isGoogleSignedIn ? (
+              <div className="flex items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {googlePhotoURL ? (
+                    <img
+                      src={googlePhotoURL}
+                      alt={googleDisplayName || 'Google'}
+                      className="w-9 h-9 rounded-full border-2 border-emerald-400 shrink-0 object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-emerald-500 text-zinc-950 font-extrabold flex items-center justify-center text-sm shrink-0">
+                      {(googleDisplayName || loadout.playerName)[0]?.toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                      Cuenta Google Conectada
+                    </div>
+                    <div className="font-display font-bold text-sm truncate">
+                      {googleDisplayName || loadout.playerName}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={onLogoutGoogle}
+                  className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-bold shrink-0"
+                >
+                  Salir
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <div>
+                  <div className="text-[11px] font-bold text-amber-300 uppercase">
+                    Cuenta Google · 1 vs 1 Online
+                  </div>
+                  <p className="text-xs text-zinc-300 mt-0.5 leading-snug">
+                    Entra con tu cuenta Google para guardar tus amigos y retarlos a carreras 1 vs 1
+                    desde cualquier celular: el que sube más gana, el que cae pierde.
+                  </p>
+                </div>
+                <button
+                  onClick={onLoginGoogle}
+                  disabled={authBusy}
+                  className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 font-display font-extrabold text-xs flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                  <span>{authBusy ? 'Conectando...' : 'Entrar con Google'}</span>
+                </button>
+              </div>
+            )}
+            {authError && <p className="text-[11px] font-semibold text-rose-400">{authError}</p>}
+          </div>
+
           {/* Add Friend Form */}
           <div className="mokaya-card rounded-2xl p-4 space-y-3">
             <h2 className="font-display font-bold text-base flex items-center gap-2">
@@ -328,7 +453,7 @@ export const SocialHub: React.FC<SocialHubProps> = ({
                         <Swords className="w-3 h-3" /> Carrera
                       </button>
                       <button
-                        onClick={() => onRemoveFriend(friend.playerName)}
+                        onClick={() => onRemoveFriend(friend.playerName, friend.clientId)}
                         aria-label={`Eliminar a ${friend.playerName}`}
                         className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50"
                       >
@@ -341,7 +466,7 @@ export const SocialHub: React.FC<SocialHubProps> = ({
             </div>
           </div>
 
-          {/* Discover Online / Leaderboard Players */}
+          {/* Discover Online / Google / Leaderboard Players */}
           {discoveryCandidates.length > 0 && (
             <div className="mokaya-card rounded-2xl p-4 space-y-2.5">
               <h3 className="font-display font-bold text-sm text-zinc-900">
@@ -350,7 +475,7 @@ export const SocialHub: React.FC<SocialHubProps> = ({
               <div className="space-y-2">
                 {discoveryCandidates.map((cand) => (
                   <div
-                    key={cand.playerName}
+                    key={cand.key}
                     className="flex items-center justify-between gap-2 bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2"
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -364,7 +489,13 @@ export const SocialHub: React.FC<SocialHubProps> = ({
                           {cand.playerName} <span className="text-[10px] text-zinc-500">[{cand.clanTag}]</span>
                         </div>
                         <div className="text-[10px] text-zinc-500">
-                          {cand.online ? 'Conectado ahora' : 'Ranking Global'}
+                          {cand.online
+                            ? cand.isGoogle
+                              ? 'Google · En línea ahora'
+                              : 'Conectado ahora'
+                            : cand.isGoogle
+                            ? 'Cuenta Google'
+                            : 'Ranking Global'}
                         </div>
                       </div>
                     </div>

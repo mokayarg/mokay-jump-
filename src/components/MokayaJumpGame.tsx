@@ -86,6 +86,11 @@ interface MokayaJumpGameProps {
   onJoinVoice: (channel: string) => void;
   onLeaveVoice: () => void;
   onToggleMic: () => void;
+  // Google Account Sync
+  isGoogleSignedIn?: boolean;
+  authBusy?: boolean;
+  onLoginGoogle?: () => void;
+  onOpenFriendsTab?: () => void;
 }
 
 type GamePhase = 'TITLE_MENU' | 'PLAYING' | 'PAUSED' | 'GAME_OVER';
@@ -240,6 +245,10 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
   onJoinVoice,
   onLeaveVoice,
   onToggleMic,
+  isGoogleSignedIn = false,
+  authBusy = false,
+  onLoginGoogle,
+  onOpenFriendsTab,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [phase, setPhase] = useState<GamePhase>('TITLE_MENU');
@@ -685,11 +694,21 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
     [activeRoom, generatePlatformsUpTo, selectedArenaId, selectedChar.cry]
   );
 
+  const startedRoomCodeRef = useRef<string | null>(null);
+  const activeRoomRef = useRef<RoomMatchInfo | null>(activeRoom);
+  activeRoomRef.current = activeRoom;
+  const onSendCombatSyncRef = useRef(onSendCombatSync);
+  onSendCombatSyncRef.current = onSendCombatSync;
+
   useEffect(() => {
-    if (activeRoom) {
-      startNewRun(activeRoom.code);
+    const code = activeRoom?.code ?? null;
+    if (code && startedRoomCodeRef.current !== code) {
+      startedRoomCodeRef.current = code;
+      startNewRun(code);
+    } else if (!code) {
+      startedRoomCodeRef.current = null;
     }
-  }, [activeRoom, startNewRun]);
+  }, [activeRoom?.code, startNewRun]);
 
   useEffect(() => {
     combatHandlerRef.current = (payload: any) => {
@@ -702,7 +721,32 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
 
       const rivalPeak = s.rival.meters;
 
-      // Dual Race: highest altitude wins!
+      // Authoritative finish from Firestore race winner (e.g. rival forfeited or fell behind)
+      if (payload.forcedWin && s.duelResult !== 'win') {
+        s.duelResult = 'win';
+        if (!s.reportedEnd) {
+          s.reportedEnd = true;
+          soundFx.playKO(true);
+          addFloatText(s.player.x, s.player.y - 80, '¡GANASTE LA CARRERA!', '#4ADE80');
+          const gainedXp = 35 + Math.min(40, Math.floor(s.meters / 30));
+          onGainPetXp(gainedXp, true);
+          onReportMatchResult(true, tournamentMode, stylePts, styleRank.name);
+        }
+        return;
+      }
+      if (payload.forcedLoss && s.duelResult !== 'loss') {
+        s.duelResult = 'loss';
+        if (!s.reportedEnd) {
+          s.reportedEnd = true;
+          const gainedXp = 15 + Math.min(55, Math.floor(s.meters / 35) + Math.floor(s.sparks / 4));
+          soundFx.playKO(false);
+          onGainPetXp(gainedXp, false);
+          onReportMatchResult(false, tournamentMode, stylePts, styleRank.name);
+        }
+        return;
+      }
+
+      // Dual Race: highest altitude wins, falling below loses!
       if (s.phase === 'PLAYING' && (!s.duelResult || s.duelResult === 'waiting')) {
         if (!s.rival.alive && s.meters > rivalPeak) {
           s.duelResult = 'win';
@@ -851,8 +895,8 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
 
       if (!s.reportedEnd) {
         const gainedXp = 15 + Math.min(55, Math.floor(finalMeters / 35) + Math.floor(s.sparks / 4));
-        if (activeRoom && s.rival) {
-          onSendCombatSync({ meters: finalMeters, x: s.player.x, alive: false });
+        if (activeRoomRef.current && s.rival) {
+          onSendCombatSyncRef.current({ meters: finalMeters, x: s.player.x, alive: false });
           if (!s.rival.alive) {
             const won = finalMeters >= s.rival.meters;
             s.duelResult = won ? 'win' : 'loss';
@@ -876,6 +920,8 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
             onReportMatchResult(true, true, stylePts, styleRank.name);
           }
         }
+      } else if (activeRoomRef.current && s.rival) {
+        onSendCombatSyncRef.current({ meters: finalMeters, x: s.player.x, alive: false });
       }
     };
 
@@ -1232,7 +1278,13 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
           }
 
           // Check if player just climbed past a fallen rival in a Dual Race
-          if (activeRoom && s.rival && !s.rival.alive && !s.duelResult && s.meters > s.rival.meters) {
+          if (
+            activeRoomRef.current &&
+            s.rival &&
+            !s.rival.alive &&
+            !s.duelResult &&
+            s.meters > s.rival.meters
+          ) {
             s.duelResult = 'win';
             s.reportedEnd = true;
             soundFx.playKO(true);
@@ -1263,11 +1315,11 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
           }
         }
 
-        if (activeRoom) {
+        if (activeRoomRef.current) {
           s.syncAccum += dt;
           if (s.syncAccum >= 0.05) {
             s.syncAccum = 0;
-            onSendCombatSync({ meters: s.meters, x: p.x, alive: true });
+            onSendCombatSyncRef.current({ meters: s.meters, x: p.x, alive: true });
           }
         }
       }
@@ -1602,7 +1654,6 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [
-    activeRoom,
     charStage.level,
     generatePlatformsUpTo,
     loadout.petId,
@@ -1788,10 +1839,13 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
           {activeRoom && (
             <div className="bg-zinc-900 rounded-lg px-2.5 py-1 flex items-center justify-between text-[11px] border border-zinc-800">
               <span>
-                Carrera Dual vs <strong className="text-amber-300">{activeRoom.opponentName}</strong>
+                1 vs 1 vs <strong className="text-amber-300">{activeRoom.opponentName}</strong>
+                {hud.duelResult === 'win' && (
+                  <span className="ml-1.5 text-emerald-400 font-extrabold">· ¡GANASTE!</span>
+                )}
               </span>
               <span className="font-mono-tabular">
-                {hud.rivalMeters}m {hud.rivalAlive ? '▲' : '(Final)'}
+                {hud.rivalMeters}m {hud.rivalAlive ? '▲' : '(Cayó)'}
               </span>
             </div>
           )}
@@ -1981,12 +2035,30 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
             </div>
 
             <div className="flex flex-col w-full max-w-xs gap-2.5 pt-1">
-              <button
-                onClick={() => startNewRun(activeRoom?.code)}
-                className="mokaya-btn bg-[#FF6A3D] text-white py-3.5 px-6 rounded-xl font-display font-extrabold text-base flex items-center justify-center gap-2"
-              >
-                <RotateCcw className="w-4 h-4" /> Jugar de Nuevo
-              </button>
+              {activeRoom && activeRoom.code.startsWith('race_') ? (
+                <button
+                  onClick={() => {
+                    onSendDuelInvite(
+                      activeRoom.opponentName,
+                      selectedArenaId,
+                      activeRoom.opponentId
+                    );
+                    simRef.current.phase = 'TITLE_MENU';
+                    setPhase('TITLE_MENU');
+                    onLeaveRoom();
+                  }}
+                  className="mokaya-btn bg-[#FF6A3D] text-white py-3.5 px-6 rounded-xl font-display font-extrabold text-base flex items-center justify-center gap-2"
+                >
+                  <Swords className="w-4 h-4" /> Retar Revancha 1 vs 1
+                </button>
+              ) : (
+                <button
+                  onClick={() => startNewRun(activeRoom?.code)}
+                  className="mokaya-btn bg-[#FF6A3D] text-white py-3.5 px-6 rounded-xl font-display font-extrabold text-base flex items-center justify-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" /> Jugar de Nuevo
+                </button>
+              )}
               <button
                 onClick={() => {
                   simRef.current.phase = 'TITLE_MENU';
@@ -2137,16 +2209,50 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
               </button>
             </div>
 
+            {/* Google Account Banner for 1v1 Friends */}
+            {!isGoogleSignedIn && onLoginGoogle && (
+              <div className="bg-zinc-950 text-white rounded-xl p-3 space-y-2">
+                <div className="text-[11px] font-bold text-amber-300">
+                  Conecta tu cuenta Google para jugar 1 vs 1 con amigos
+                </div>
+                <button
+                  onClick={onLoginGoogle}
+                  disabled={authBusy}
+                  className="w-full py-2 px-3 rounded-lg bg-white text-zinc-900 text-xs font-extrabold flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                  <span>{authBusy ? 'Conectando...' : 'Entrar con Google'}</span>
+                </button>
+              </div>
+            )}
+
             {/* Direct Friend Dual Race Challenges */}
-            {friends.length > 0 && (
+            {friends.length > 0 ? (
               <div className="space-y-1.5">
                 <div className="text-xs font-bold text-zinc-700 flex items-center justify-between">
-                  <span>Retar a un amigo conectado</span>
+                  <span>Retar a un amigo 1 vs 1</span>
                   <span className="text-[10px] text-zinc-500">
                     {friends.filter((f) => f.online).length} en línea
                   </span>
                 </div>
-                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                <div className="space-y-1.5 max-h-36 overflow-y-auto">
                   {friends.map((friend) => (
                     <div
                       key={friend.playerName}
@@ -2172,15 +2278,28 @@ export const MokayaJumpGame: React.FC<MokayaJumpGameProps> = ({
                         onClick={() =>
                           onSendDuelInvite(friend.playerName, selectedArenaId, friend.clientId)
                         }
-                        disabled={!friend.online || !connected}
+                        disabled={!friend.online}
                         className="mokaya-btn bg-[#FF6A3D] text-white px-2.5 py-1 rounded-lg text-[11px] font-bold disabled:opacity-40 shrink-0"
                       >
-                        Retar
+                        Retar 1 vs 1
                       </button>
                     </div>
                   ))}
                 </div>
               </div>
+            ) : (
+              isGoogleSignedIn &&
+              onOpenFriendsTab && (
+                <button
+                  onClick={() => {
+                    setShowOnlineSheet(false);
+                    onOpenFriendsTab();
+                  }}
+                  className="w-full py-2 px-3 rounded-xl bg-zinc-100 border border-zinc-300 text-xs font-bold text-zinc-800 hover:bg-zinc-200"
+                >
+                  + Agregar amigos con cuenta Google
+                </button>
+              )
             )}
 
             {/* Voice Quick Toggle */}

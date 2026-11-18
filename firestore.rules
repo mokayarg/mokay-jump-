@@ -1,0 +1,356 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default-Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Global Hardened Helpers
+    // -------------------------------------------------------------------------
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isVerifiedOwner(uid) {
+      return isVerifiedUser() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidShortString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints (Anti-Update-Gap)
+    // -------------------------------------------------------------------------
+    function isValidUserAccount(data, uid) {
+      return data.keys().hasAll(['uid', 'displayName', 'photoURL', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt'])
+        && data.uid == uid
+        && data.uid == request.auth.uid
+        && (!('email' in data) || isValidShortString(data.email, 0, 254))
+        && isValidShortString(data.displayName, 1, 40)
+        && isValidShortString(data.photoURL, 0, 500)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublicProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'searchName', 'photoURL',
+          'petId', 'petXp', 'clanTag', 'elo', 'wins', 'losses',
+          'bestMeters', 'styleRank', 'online', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'searchName', 'photoURL',
+          'petId', 'petXp', 'clanTag', 'elo', 'wins', 'losses',
+          'bestMeters', 'styleRank', 'online', 'createdAt', 'updatedAt'
+        ])
+        && data.uid == uid
+        && data.uid == request.auth.uid
+        && isValidShortString(data.displayName, 1, 40)
+        && isValidShortString(data.searchName, 1, 40)
+        && isValidShortString(data.photoURL, 0, 500)
+        && isValidShortString(data.petId, 1, 40)
+        && data.petXp is number && data.petXp >= 0 && data.petXp <= 10000000
+        && isValidShortString(data.clanTag, 1, 12)
+        && data.elo is number && data.elo >= 0 && data.elo <= 100000
+        && data.wins is number && data.wins >= 0 && data.wins <= 1000000
+        && data.losses is number && data.losses >= 0 && data.losses <= 1000000
+        && data.bestMeters is number && data.bestMeters >= 0 && data.bestMeters <= 1000000
+        && isValidShortString(data.styleRank, 1, 50)
+        && data.online is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFriendLink(data, uid, friendUid) {
+      return data.keys().hasAll([
+          'uid', 'friendUid', 'friendName', 'friendPhotoURL',
+          'friendPetId', 'friendClanTag', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'friendUid', 'friendName', 'friendPhotoURL',
+          'friendPetId', 'friendClanTag', 'createdAt'
+        ])
+        && data.uid == uid
+        && data.uid == request.auth.uid
+        && data.friendUid == friendUid
+        && data.friendUid != uid
+        && isValidShortString(data.friendName, 1, 40)
+        && isValidShortString(data.friendPhotoURL, 0, 500)
+        && isValidShortString(data.friendPetId, 1, 40)
+        && isValidShortString(data.friendClanTag, 1, 12)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidDuelInvite(data) {
+      return data.keys().hasAll([
+          'fromUid', 'fromName', 'fromPhotoURL', 'fromPetId', 'fromClanTag',
+          'toUid', 'arenaId', 'status', 'raceId', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'fromUid', 'fromName', 'fromPhotoURL', 'fromPetId', 'fromClanTag',
+          'toUid', 'arenaId', 'status', 'raceId', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.fromUid)
+        && isValidId(data.toUid)
+        && data.fromUid != data.toUid
+        && isValidShortString(data.fromName, 1, 40)
+        && isValidShortString(data.fromPhotoURL, 0, 500)
+        && isValidShortString(data.fromPetId, 1, 40)
+        && isValidShortString(data.fromClanTag, 1, 12)
+        && isValidShortString(data.arenaId, 1, 40)
+        && data.status in ['pending', 'accepted', 'declined', 'cancelled']
+        && data.raceId is string && data.raceId.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDualRace(data) {
+      return data.keys().hasAll([
+          'hostUid', 'hostName', 'hostPetId',
+          'guestUid', 'guestName', 'guestPetId',
+          'arenaId', 'seed', 'status',
+          'hostMeters', 'hostX', 'hostAlive',
+          'guestMeters', 'guestX', 'guestAlive',
+          'winnerUid', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'hostUid', 'hostName', 'hostPetId',
+          'guestUid', 'guestName', 'guestPetId',
+          'arenaId', 'seed', 'status',
+          'hostMeters', 'hostX', 'hostAlive',
+          'guestMeters', 'guestX', 'guestAlive',
+          'winnerUid', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.hostUid)
+        && isValidId(data.guestUid)
+        && data.hostUid != data.guestUid
+        && isValidShortString(data.hostName, 1, 40)
+        && isValidShortString(data.hostPetId, 1, 40)
+        && isValidShortString(data.guestName, 1, 40)
+        && isValidShortString(data.guestPetId, 1, 40)
+        && isValidShortString(data.arenaId, 1, 40)
+        && isValidShortString(data.seed, 1, 64)
+        && data.status in ['active', 'finished']
+        && data.hostMeters is number && data.hostMeters >= 0 && data.hostMeters <= 1000000
+        && data.hostX is number && data.hostX >= -100 && data.hostX <= 600
+        && data.hostAlive is bool
+        && data.guestMeters is number && data.guestMeters >= 0 && data.guestMeters <= 1000000
+        && data.guestX is number && data.guestX >= -100 && data.guestX <= 600
+        && data.guestAlive is bool
+        && data.winnerUid is string && data.winnerUid.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // 1. Private User Accounts (PII Isolated - Owner Only)
+    // -------------------------------------------------------------------------
+    match /users/{uid} {
+      allow get: if isValidId(uid) && isOwner(uid);
+      allow create: if isValidId(uid)
+        && isVerifiedOwner(uid)
+        && isValidUserAccount(incoming(), uid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(uid)
+        && isVerifiedOwner(uid)
+        && isValidUserAccount(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'photoURL', 'updatedAt']);
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. Public Non-PII Gamer Profiles & Friends Subcollection
+    // -------------------------------------------------------------------------
+    match /publicProfiles/{uid} {
+      allow get: if isValidId(uid) && isVerifiedUser();
+      allow list: if isVerifiedUser() && (resource.data.uid is string || resource.data.searchName is string);
+      allow create: if isValidId(uid)
+        && isVerifiedOwner(uid)
+        && isValidPublicProfile(incoming(), uid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(uid)
+        && isVerifiedOwner(uid)
+        && isValidPublicProfile(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'searchName', 'photoURL', 'petId', 'petXp',
+          'clanTag', 'elo', 'wins', 'losses', 'bestMeters', 'styleRank',
+          'online', 'updatedAt'
+        ]);
+
+      match /friends/{friendUid} {
+        allow get: if isValidId(uid)
+          && isValidId(friendUid)
+          && isOwner(uid)
+          && get(/databases/$(database)/documents/publicProfiles/$(uid)).data.uid == uid;
+        allow list: if isValidId(uid)
+          && isOwner(uid)
+          && resource.data.uid == request.auth.uid;
+        allow create: if isValidId(uid)
+          && isValidId(friendUid)
+          && isVerifiedOwner(uid)
+          && isValidFriendLink(incoming(), uid, friendUid)
+          && incoming().createdAt == request.time
+          && get(/databases/$(database)/documents/publicProfiles/$(uid)).data.uid == uid
+          && exists(/databases/$(database)/documents/publicProfiles/$(friendUid));
+        allow update: if isValidId(uid)
+          && isValidId(friendUid)
+          && isVerifiedOwner(uid)
+          && isValidFriendLink(incoming(), uid, friendUid)
+          && incoming().uid == existing().uid
+          && incoming().friendUid == existing().friendUid
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'friendName', 'friendPhotoURL', 'friendPetId', 'friendClanTag'
+          ]);
+        allow delete: if isValidId(uid)
+          && isValidId(friendUid)
+          && isOwner(uid)
+          && get(/databases/$(database)/documents/publicProfiles/$(uid)).data.uid == uid;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. Online 1v1 Duel Invites (Sender or Recipient Only)
+    // -------------------------------------------------------------------------
+    match /duelInvites/{inviteId} {
+      allow get: if isValidId(inviteId)
+        && isVerifiedUser()
+        && (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid);
+      allow list: if isVerifiedUser()
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if isValidId(inviteId)
+        && isVerifiedUser()
+        && isValidDuelInvite(incoming())
+        && incoming().fromUid == request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().raceId == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/publicProfiles/$(incoming().fromUid))
+        && exists(/databases/$(database)/documents/publicProfiles/$(incoming().toUid));
+      allow update: if isValidId(inviteId)
+        && isVerifiedUser()
+        && isValidDuelInvite(incoming())
+        && existing().status == 'pending'
+        && incoming().fromUid == existing().fromUid
+        && incoming().toUid == existing().toUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Recipient Accepts Atomically with DualRace Room Creation
+          (
+            request.auth.uid == existing().toUid
+            && incoming().status == 'accepted'
+            && isValidId(incoming().raceId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'raceId', 'updatedAt'])
+            && existsAfter(/databases/$(database)/documents/dualRaces/$(incoming().raceId))
+          )
+          ||
+          // Action: Recipient Declines
+          (
+            request.auth.uid == existing().toUid
+            && incoming().status == 'declined'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+          ||
+          // Action: Sender Cancels
+          (
+            request.auth.uid == existing().fromUid
+            && incoming().status == 'cancelled'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. Online 1v1 Dual Races (Participants Only, Partitioned & Terminal-Locked)
+    // -------------------------------------------------------------------------
+    match /dualRaces/{raceId} {
+      allow get: if isValidId(raceId)
+        && isVerifiedUser()
+        && (existing().hostUid == request.auth.uid || existing().guestUid == request.auth.uid);
+      allow list: if isVerifiedUser()
+        && (resource.data.hostUid == request.auth.uid || resource.data.guestUid == request.auth.uid);
+      allow create: if isValidId(raceId)
+        && isVerifiedUser()
+        && isValidDualRace(incoming())
+        && (incoming().hostUid == request.auth.uid || incoming().guestUid == request.auth.uid)
+        && incoming().status == 'active'
+        && incoming().winnerUid == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/publicProfiles/$(incoming().hostUid))
+        && exists(/databases/$(database)/documents/publicProfiles/$(incoming().guestUid));
+      allow update: if isValidId(raceId)
+        && isVerifiedUser()
+        && isValidDualRace(incoming())
+        && existing().status == 'active'
+        && incoming().hostUid == existing().hostUid
+        && incoming().guestUid == existing().guestUid
+        && incoming().arenaId == existing().arenaId
+        && incoming().seed == existing().seed
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().status == 'active' && incoming().winnerUid == ''
+          || incoming().status == 'finished' && (incoming().winnerUid == existing().hostUid || incoming().winnerUid == existing().guestUid)
+        )
+        && (
+          // Action: Host climbs or finishes race
+          (
+            request.auth.uid == existing().hostUid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'hostMeters', 'hostX', 'hostAlive', 'status', 'winnerUid', 'updatedAt'
+            ])
+          )
+          ||
+          // Action: Guest climbs or finishes race
+          (
+            request.auth.uid == existing().guestUid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'guestMeters', 'guestX', 'guestAlive', 'status', 'winnerUid', 'updatedAt'
+            ])
+          )
+        );
+    }
+
+    // Startup connection check document (intentionally denied to avoid exposing data;
+    // client SDK verifies server reachability cleanly)
+    match /test/{docId} {
+      allow read, write: if false;
+    }
+  }
+}

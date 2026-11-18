@@ -1,0 +1,178 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Private Google-authenticated user record containing PII isolated from public reads.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 254 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "photoURL", "createdAt", "updatedAt"]
+    },
+    "PublicProfile": {
+      "title": "PublicProfile",
+      "description": "Public non-PII gamer card used for friend discovery, rankings, and 1v1 dual races.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "searchName": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "petId": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "petXp": { "type": "number" },
+        "clanTag": { "type": "string", "minLength": 1, "maxLength": 12 },
+        "elo": { "type": "number" },
+        "wins": { "type": "number" },
+        "losses": { "type": "number" },
+        "bestMeters": { "type": "number" },
+        "styleRank": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "online": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "searchName",
+        "photoURL",
+        "petId",
+        "petXp",
+        "clanTag",
+        "elo",
+        "wins",
+        "losses",
+        "bestMeters",
+        "styleRank",
+        "online",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "FriendLink": {
+      "title": "FriendLink",
+      "description": "A user's saved friend entry referencing another Google-authenticated player.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "friendUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "friendName": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "friendPhotoURL": { "type": "string", "maxLength": 500 },
+        "friendPetId": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "friendClanTag": { "type": "string", "minLength": 1, "maxLength": 12 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "friendUid",
+        "friendName",
+        "friendPhotoURL",
+        "friendPetId",
+        "friendClanTag",
+        "createdAt"
+      ]
+    },
+    "DuelInvite": {
+      "title": "DuelInvite",
+      "description": "Online 1v1 Dual Race challenge sent from one Google-signed-in friend to another.",
+      "type": "object",
+      "properties": {
+        "fromUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "fromName": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "fromPhotoURL": { "type": "string", "maxLength": 500 },
+        "fromPetId": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "fromClanTag": { "type": "string", "minLength": 1, "maxLength": 12 },
+        "toUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "arenaId": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined", "cancelled"] },
+        "raceId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "fromUid",
+        "fromName",
+        "fromPhotoURL",
+        "fromPetId",
+        "fromClanTag",
+        "toUid",
+        "arenaId",
+        "status",
+        "raceId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DualRace": {
+      "title": "DualRace",
+      "description": "Live 1v1 vertical climb race state where highest altitude wins or falling below loses.",
+      "type": "object",
+      "properties": {
+        "hostUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "hostName": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "hostPetId": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "guestUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "guestName": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "guestPetId": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "arenaId": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "seed": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "status": { "type": "string", "enum": ["active", "finished"] },
+        "hostMeters": { "type": "number" },
+        "hostX": { "type": "number" },
+        "hostAlive": { "type": "boolean" },
+        "guestMeters": { "type": "number" },
+        "guestX": { "type": "number" },
+        "guestAlive": { "type": "boolean" },
+        "winnerUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "hostUid",
+        "hostName",
+        "hostPetId",
+        "guestUid",
+        "guestName",
+        "guestPetId",
+        "arenaId",
+        "seed",
+        "status",
+        "hostMeters",
+        "hostX",
+        "hostAlive",
+        "guestMeters",
+        "guestX",
+        "guestAlive",
+        "winnerUid",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Private owner-only account documents containing Google email PII."
+    },
+    "/publicProfiles/{uid}": {
+      "schema": { "$ref": "#/entities/PublicProfile" },
+      "description": "Public non-PII gamer profiles for searching friends and viewing online status."
+    },
+    "/publicProfiles/{uid}/friends/{friendUid}": {
+      "schema": { "$ref": "#/entities/FriendLink" },
+      "description": "Friends list owned by a Google-signed-in player."
+    },
+    "/duelInvites/{inviteId}": {
+      "schema": { "$ref": "#/entities/DuelInvite" },
+      "description": "1v1 online dual race invitations between friends."
+    },
+    "/dualRaces/{raceId}": {
+      "schema": { "$ref": "#/entities/DualRace" },
+      "description": "Live 1v1 dual race altitude and win/loss synchronization rooms."
+    }
+  }
+}
